@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Estructura Cristalina FCC Interactiva (PC y Móvil)</title>
+</head>
+<body style="margin: 0; background: #222; padding: 10px;">
+
+<!-- Contenedor adaptado tanto para Moodle como para uso local -->
+<div style="width: 100%; max-width: 800px; margin: 20px auto; font-family: sans-serif; background: #1a1a1a; color: #fff; padding: 20px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);">
+  <h4 style="text-align: center; margin-top: 0; color: #00bcd4; font-size: 1.2rem;">Estructura Cristalina FCC Interactiva</h4>
+  <p style="font-size: 13px; color: #bbb; text-align: center; margin-bottom: 15px;">
+    🖱️ <b>PC:</b> Clic izquierdo + arrastrar para rotar | Rueda del ratón para zoom <br>
+    📱 <b>Móvil:</b> Deslizar un dedo para rotar | Pellizcar para zoom
+  </p>
+  
+  <!-- Panel de Control Interactivo -->
+  <div style="display: flex; gap: 10px; justify-content: center; margin-bottom: 15px; flex-wrap: wrap;">
+    <button id="addCellX" style="background: #2196F3; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: bold;">+ Celda en X</button>
+    <button id="addCellY" style="background: #4CAF50; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: bold;">+ Celda en Y</button>
+    <button id="addCellZ" style="background: #9C27B0; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: bold;">+ Celda en Z</button>
+    <button id="resetGrid" style="background: #f44336; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: bold;">Reiniciar (1 Celda)</button>
+  </div>
+
+  <!-- Lienzo donde se dibuja el 3D con prevención de scroll táctil accidental -->
+  <div id="canvas-container" style="width: 100%; height: 450px; background: #111; border-radius: 6px; overflow: hidden; position: relative; touch-action: none;"></div>
+</div>
+
+<!-- Importación robusta compatible con entornos locales (file://) -->
+<script src="https://unpkg.com"></script>
+<script src="https://unpkg.com"></script>
+
+<script>
+(function() {
+  // Esperar a que las librerías se carguen en el navegador del PC
+  window.addEventListener('load', () => {
+    const container = document.getElementById('canvas-container');
+    if (!container || typeof THREE === 'undefined') return;
+    
+    // 1. Configuración de la Escena, Cámara y Renderizador
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x111111);
+    
+    const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
+    camera.position.set(5, 5, 8);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(container.clientWidth, container.clientHeight);
+    container.appendChild(renderer.domElement);
+
+    // Controles de órbita interactivos (Configuración universal)
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+
+    // 2. Iluminación de la escena
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+    scene.add(ambientLight);
+    
+    const dirLight1 = new THREE.DirectionalLight(0xffffff, 0.8);
+    dirLight1.position.set(10, 15, 10);
+    scene.add(dirLight1);
+
+    // 3. Parámetros de la Red FCC
+    const rVértice = 0.25; 
+    const rCara = 0.25;    
+    const dCelda = 2.0;    
+
+    const geoVertice = new THREE.SphereGeometry(rVértice, 24, 24);
+    const geoCara = new THREE.SphereGeometry(rCara, 24, 24);
+    
+    const matVertice = new THREE.MeshStandardMaterial({ color: 0x4caf50, roughness: 0.3, metalness: 0.2 }); 
+    const matCara = new THREE.MeshStandardMaterial({ color: 0x2196f3, roughness: 0.3, metalness: 0.2 });    
+    const matArista = new THREE.LineBasicMaterial({ color: 0x555555 });
+
+    let crystalGroup = new THREE.Group();
+    scene.add(crystalGroup);
+
+    let activeCells = new Set();
+
+    function createFCCCell(nx, ny, nz) {
+      const key = `${nx},${ny},${nz}`;
+      if (activeCells.has(key)) return;
+      activeCells.add(key);
+
+      const ox = nx * dCelda;
+      const oy = ny * dCelda;
+      const oz = nz * dCelda;
+
+      // Esquemas de los 8 vértices
+      const vertices = [
+        [0,0,0], [1,0,0], [1,1,0], [0,1,0],
+        [0,0,1], [1,0,1], [1,1,1], [0,1,1]
+      ];
+      vertices.forEach(v => {
+        const mesh = new THREE.Mesh(geoVertice, matVertice);
+        mesh.position.set(ox + v[0]*dCelda, oy + v[1]*dCelda, oz + v[2]*dCelda);
+        crystalGroup.add(mesh);
+      });
+
+      // Centros de las 6 caras
+      const caras = [
+        [0.5, 0.5, 0], [0.5, 0.5, 1],
+        [0.5, 0, 0.5], [0.5, 1, 0.5],
+        [0, 0.5, 0.5], [1, 0.5, 0.5]
+      ];
+      caras.forEach(c => {
+        const mesh = new THREE.Mesh(geoCara, matCara);
+        mesh.position.set(ox + c[0]*dCelda, oy + c[1]*dCelda, oz + c[2]*dCelda);
+        crystalGroup.add(mesh);
+      });
+
+      // Aristas de la estructura de alambre
+      const lineGeometry = new THREE.BufferGeometry();
+      const lineVertices = [];
+      
+      lineVertices.push(ox, oy, oz,  ox+dCelda, oy, oz);
+      lineVertices.push(ox+dCelda, oy, oz,  ox+dCelda, oy+dCelda, oz);
+      lineVertices.push(ox+dCelda, oy+dCelda, oz,  ox, oy+dCelda, oz);
+      lineVertices.push(ox, oy+dCelda, oz,  ox, oy, oz);
+      lineVertices.push(ox, oy, oz+dCelda,  ox+dCelda, oy, oz+dCelda);
+      lineVertices.push(ox+dCelda, oy, oz+dCelda,  ox+dCelda, oy+dCelda, oz+dCelda);
+      lineVertices.push(ox+dCelda, oy+dCelda, oz+dCelda,  ox, oy+dCelda, oz+dCelda);
+      lineVertices.push(ox, oy+dCelda, oz+dCelda,  ox, oy, oz+dCelda);
+      lineVertices.push(ox, oy, oz,  ox, oy, oz+dCelda);
+      lineVertices.push(ox+dCelda, oy, oz,  ox+dCelda, oy, oz+dCelda);
+      lineVertices.push(ox+dCelda, oy+dCelda, oz,  ox+dCelda, oy+dCelda, oz+dCelda);
+      lineVertices.push(ox, oy+dCelda, oz,  ox, oy+dCelda, oz+dCelda);
+
+      lineGeometry.setAttribute('position', new THREE.Float32BufferAttribute(lineVertices, 3));
+      const wireframe = new THREE.LineSegments(lineGeometry, matArista);
+      crystalGroup.add(wireframe);
+    }
+
+    let currentX = 0, currentY = 0, currentZ = 0;
+
+    function initCrystal() {
+      // Limpieza segura de los hijos del contenedor
+      while(crystalGroup.children.length > 0){ 
+        crystalGroup.remove(crystalGroup.children[0]); 
+      }
+      activeCells.clear();
+      currentX = 0; currentY = 0; currentZ = 0;
+      
+      createFCCCell(0, 0, 0);
+      centerCamera();
+    }
+
+    function centerCamera() {
+      const box = new THREE.Box3().setFromObject(crystalGroup);
+      const center = new THREE.Vector3();
+      box.getCenter(center);
+      controls.target.copy(center);
+    }
+
+    // Suscripción de eventos para los botones
+    document.getElementById('addCellX').addEventListener('click', () => {
+      currentX++;
+      for(let y=0; y<=currentY; y++) {
+        for(let z=0; z<=currentZ; z++) { createFCCCell(currentX, y, z); }
+      }
+      centerCamera();
+    });
+
+    document.getElementById('addCellY').addEventListener('click', () => {
+      currentY++;
+      for(let x=0; x<=currentX; x++) {
+        for(let z=0; z<=currentZ; z++) { createFCCCell(x, currentY, z); }
+      }
+      centerCamera();
+    });
+
+    document.getElementById('addCellZ').addEventListener('click', () => {
+      currentZ++;
+      for(let x=0; x<=currentX; x++) {
+        for(let y=0; y<=currentY; y++) { createFCCCell(x, y, currentZ); }
+      }
+      centerCamera();
+    });
+
+    document.getElementById('resetGrid').addEventListener('click', initCrystal);
+
+    initCrystal();
+
+    // Bucle de animación y renderizado continuo
+    function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    window.addEventListener('resize', () => {
+      camera.aspect = container.clientWidth / container.clientHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(container.clientWidth, container.clientHeight);
+    });
+  });
+})();
+</script>
+
+</body>
+</html>
